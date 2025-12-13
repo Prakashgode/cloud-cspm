@@ -1,0 +1,22 @@
+AWS Security Posture Management - research notes
+=================================================
+
+boto3 APIs to look at:
+- iam.get_account_summary() - check if root MFA is enabled
+- iam.get_account_password_policy() - password requirements
+- iam.list_access_keys() - check for old/unrotated keys
+- s3.get_public_access_block() - check if buckets are public
+- s3.get_bucket_encryption() - check encryption settings
+- ec2.describe_security_groups() - find open ports
+- sts.get_caller_identity() - verify we're authenticated
+
+CIS Benchmark for AWS is the standard to check against
+https://www.cisecurity.org/benchmark/amazon_web_services
+
+start with IAM checks since those are account-wide (no region needed)
+then S3, then EC2 (need to iterate regions)
+
+dependencies:
+- boto3
+- click (for CLI)
+- rich (for nice console output)
