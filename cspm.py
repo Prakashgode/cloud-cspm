@@ -8,12 +8,15 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 
+from scanners import IAMScanner
 from scanners.base_scanner import Status, Severity
 
 console = Console()
 
 # scanner registry - add new scanners here
-SCANNERS = {}
+SCANNERS = {
+    "iam": ("IAM Security", IAMScanner),
+}
 
 SEVERITY_COLORS = {
     "CRITICAL": "red bold",
@@ -59,7 +62,47 @@ def main(profile, region):
         console.print("Configure AWS credentials: aws configure")
         sys.exit(1)
 
-    console.print("[yellow]No scanners configured yet[/yellow]")
+    all_findings = []
+
+    for scanner_name in SCANNERS:
+        label, scanner_class = SCANNERS[scanner_name]
+        console.print(f"[cyan]Scanning:[/cyan] {label}...")
+
+        try:
+            s = scanner_class(session)
+            findings = s.scan()
+            all_findings.extend(findings)
+
+            passed = sum(1 for f in findings if f.status == Status.PASS)
+            failed = sum(1 for f in findings if f.status == Status.FAIL)
+            console.print(
+                f"  [green]{passed} passed[/green] | [red]{failed} failed[/red]"
+            )
+        except Exception as e:
+            console.print(f"  [red]Error: {e}[/red]")
+
+    # basic results table
+    console.print()
+    table = Table(title="Security Findings", show_lines=True)
+    table.add_column("ID", style="dim", width=10)
+    table.add_column("Check", width=25)
+    table.add_column("Status", width=8, justify="center")
+    table.add_column("Severity", width=10, justify="center")
+    table.add_column("Resource", width=30)
+    table.add_column("Description", width=50)
+
+    for f in all_findings:
+        severity_style = SEVERITY_COLORS.get(f.severity.value, "")
+        table.add_row(
+            f.check_id,
+            f.check_name,
+            STATUS_ICONS.get(f.status.value, f.status.value),
+            f"[{severity_style}]{f.severity.value}[/{severity_style}]",
+            f.resource_id[:30],
+            f.description[:50],
+        )
+
+    console.print(table)
 
 
 if __name__ == "__main__":
