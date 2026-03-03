@@ -8,7 +8,7 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 
-from scanners import IAMScanner, S3Scanner, EC2Scanner, RDSScanner
+from scanners import IAMScanner, S3Scanner, EC2Scanner, RDSScanner, LoggingScanner
 from scanners.base_scanner import Status, Severity
 
 console = Console()
@@ -19,6 +19,7 @@ SCANNERS = {
     "s3": ("S3 Bucket Security", S3Scanner),
     "ec2": ("EC2 & Network Security", EC2Scanner),
     "rds": ("RDS Database Security", RDSScanner),
+    "logging": ("Logging & Monitoring", LoggingScanner),
 }
 
 SEVERITY_COLORS = {
