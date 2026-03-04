@@ -99,8 +99,7 @@ class S3Scanner(BaseScanner):
     def _check_versioning(self, s3, bucket_name):
         try:
             versioning = s3.get_bucket_versioning(Bucket=bucket_name)
-            # bug: was checking wrong field name
-            status = versioning.get("Versioning", "Disabled")
+            status = versioning.get("Status", "Disabled")
             self.add_finding(
                 check_id="CIS-3.3",
                 check_name="S3 Versioning",
