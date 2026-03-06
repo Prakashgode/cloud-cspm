@@ -10,6 +10,7 @@ from rich.text import Text
 
 from scanners import IAMScanner, S3Scanner, EC2Scanner, RDSScanner, LoggingScanner
 from scanners.base_scanner import Status, Severity
+from reports.generator import ReportGenerator
 
 console = Console()
 
@@ -40,7 +41,15 @@ STATUS_ICONS = {
 @click.command()
 @click.option("--profile", default=None, help="AWS CLI profile name")
 @click.option("--region", default=None, help="AWS region (default: all regions)")
-def main(profile, region):
+@click.option(
+    "--scanner",
+    multiple=True,
+    type=click.Choice(list(SCANNERS.keys()) + ["all"]),
+    default=["all"],
+    help="Scanners to run",
+)
+@click.option("--output", default=None, help="Output file path (JSON or CSV)")
+def main(profile, region, scanner, output):
     console.print(
         Panel(
             Text("Cloud CSPM", style="bold cyan", justify="center"),
@@ -66,9 +75,10 @@ def main(profile, region):
         console.print("Configure AWS credentials: aws configure")
         sys.exit(1)
 
+    scanners_to_run = list(SCANNERS.keys()) if "all" in scanner else list(scanner)
     all_findings = []
 
-    for scanner_name in SCANNERS:
+    for scanner_name in scanners_to_run:
         label, scanner_class = SCANNERS[scanner_name]
         console.print(f"[cyan]Scanning:[/cyan] {label}...")
 
@@ -85,7 +95,6 @@ def main(profile, region):
         except Exception as e:
             console.print(f"  [red]Error: {e}[/red]")
 
-    # basic results table
     console.print()
     table = Table(title="Security Findings", show_lines=True)
     table.add_column("ID", style="dim", width=10)
@@ -107,6 +116,33 @@ def main(profile, region):
         )
 
     console.print(table)
+
+    report = ReportGenerator(all_findings)
+    summary = report.summary()
+
+    console.print(
+        Panel(
+            f"[bold]Total Checks:[/bold] {summary['total_checks']}\n"
+            f"[green]Passed:[/green] {summary['passed']}\n"
+            f"[red]Failed:[/red] {summary['failed']}\n"
+            f"[yellow]Errors:[/yellow] {summary['errors']}\n"
+            f"[bold]Security Score:[/bold] {summary['score']}%\n\n"
+            f"[bold]Failures by Severity:[/bold]\n"
+            + "\n".join(
+                f"  [{SEVERITY_COLORS.get(k, '')}]{k}:[/{SEVERITY_COLORS.get(k, '')}] {v}"
+                for k, v in summary["failures_by_severity"].items()
+            ),
+            title="Scan Summary",
+            border_style="cyan",
+        )
+    )
+
+    if output:
+        if output.endswith(".csv"):
+            report.to_csv(output)
+        else:
+            report.to_json(output)
+        console.print(f"\n[green]Report saved to:[/green] {output}")
 
 
 if __name__ == "__main__":
