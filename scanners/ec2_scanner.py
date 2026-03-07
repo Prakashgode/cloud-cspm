@@ -12,6 +12,8 @@ class EC2Scanner(BaseScanner):
         5432: "PostgreSQL",
         1433: "MSSQL",
         27017: "MongoDB",
+        6379: "Redis",
+        9200: "Elasticsearch",  # TODO: add memcached 11211
     }
 
     def scan(self) -> list[Finding]:
@@ -20,6 +22,8 @@ class EC2Scanner(BaseScanner):
             ec2 = self.session.client("ec2", region_name=region)
             self._check_security_groups(ec2, region)
             self._check_default_security_groups(ec2, region)
+            self._check_ebs_encryption(ec2, region)
+            self._check_public_instances(ec2, region)
         return self.findings
 
     def _get_regions(self):
@@ -100,5 +104,55 @@ class EC2Scanner(BaseScanner):
                         description=f"Default security group in VPC '{sg.get('VpcId', 'N/A')}' has active rules",
                         remediation="Remove all inbound and outbound rules from the default security group",
                     )
+        except ClientError:
+            pass
+
+    def _check_ebs_encryption(self, ec2, region):
+        try:
+            volumes = ec2.describe_volumes()["Volumes"]
+            for vol in volumes:
+                vol_id = vol["VolumeId"]
+                encrypted = vol.get("Encrypted", False)
+                if not encrypted:
+                    self.add_finding(
+                        check_id="CIS-6.1",
+                        check_name="EBS Encryption",
+                        status=Status.FAIL,
+                        severity=Severity.HIGH,
+                        resource_id=vol_id,
+                        resource_type="AWS::EC2::Volume",
+                        region=region,
+                        description=f"EBS volume '{vol_id}' is NOT encrypted",
+                        remediation="Create an encrypted snapshot and replace the unencrypted volume",
+                    )
+        except ClientError:
+            pass
+
+    def _check_public_instances(self, ec2, region):
+        try:
+            reservations = ec2.describe_instances()["Reservations"]
+            for res in reservations:
+                for instance in res["Instances"]:
+                    instance_id = instance["InstanceId"]
+                    public_ip = instance.get("PublicIpAddress")
+                    state = instance["State"]["Name"]
+
+                    if public_ip and state == "running":
+                        name = ""
+                        for tag in instance.get("Tags", []):
+                            if tag["Key"] == "Name":
+                                name = tag["Value"]
+
+                        self.add_finding(
+                            check_id="CIS-4.5",
+                            check_name="Public EC2 Instance",
+                            status=Status.FAIL,
+                            severity=Severity.MEDIUM,
+                            resource_id=instance_id,
+                            resource_type="AWS::EC2::Instance",
+                            region=region,
+                            description=f"Instance '{name or instance_id}' has public IP {public_ip}",
+                            remediation="Review if public IP is necessary. Consider using a load balancer or bastion host",
+                        )
         except ClientError:
             pass

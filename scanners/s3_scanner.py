@@ -27,6 +27,8 @@ class S3Scanner(BaseScanner):
             self._check_public_access(s3, name)
             self._check_encryption(s3, name)
             self._check_versioning(s3, name)
+            self._check_logging(s3, name)
+            self._check_ssl_enforcement(s3, name)
 
         return self.findings
 
@@ -93,7 +95,7 @@ class S3Scanner(BaseScanner):
                     resource_type="AWS::S3::Bucket",
                     region="global",
                     description=f"Bucket '{bucket_name}' does NOT have encryption enabled",
-                    remediation=f"Enable default encryption on bucket {bucket_name}",
+                    remediation=f"aws s3api put-bucket-encryption --bucket {bucket_name} --server-side-encryption-configuration '{{\"Rules\":[{{\"ApplyServerSideEncryptionByDefault\":{{\"SSEAlgorithm\":\"AES256\"}}}}]}}'",
                 )
 
     def _check_versioning(self, s3, bucket_name):
@@ -113,3 +115,59 @@ class S3Scanner(BaseScanner):
             )
         except ClientError:
             pass
+
+    def _check_logging(self, s3, bucket_name):
+        try:
+            logging_config = s3.get_bucket_logging(Bucket=bucket_name)
+            has_logging = "LoggingEnabled" in logging_config
+            self.add_finding(
+                check_id="CIS-3.4",
+                check_name="S3 Access Logging",
+                status=Status.PASS if has_logging else Status.FAIL,
+                severity=Severity.MEDIUM,
+                resource_id=bucket_name,
+                resource_type="AWS::S3::Bucket",
+                region="global",
+                description=f"Bucket '{bucket_name}' access logging is "
+                + ("enabled" if has_logging else "NOT enabled"),
+                remediation=f"Enable access logging for bucket '{bucket_name}'",
+            )
+        except ClientError:
+            pass
+
+    def _check_ssl_enforcement(self, s3, bucket_name):
+        try:
+            policy_str = s3.get_bucket_policy(Bucket=bucket_name)["Policy"]
+            policy = json.loads(policy_str)
+            enforces_ssl = any(
+                stmt.get("Effect") == "Deny"
+                and stmt.get("Condition", {}).get("Bool", {}).get("aws:SecureTransport")
+                == "false"
+                for stmt in policy.get("Statement", [])
+            )
+            self.add_finding(
+                check_id="CIS-3.5",
+                check_name="S3 SSL Enforcement",
+                status=Status.PASS if enforces_ssl else Status.FAIL,
+                severity=Severity.HIGH,
+                resource_id=bucket_name,
+                resource_type="AWS::S3::Bucket",
+                region="global",
+                description=f"Bucket '{bucket_name}' "
+                + ("enforces" if enforces_ssl else "does NOT enforce")
+                + " SSL/TLS",
+                remediation=f"Add a bucket policy to deny non-SSL requests for '{bucket_name}'",
+            )
+        except ClientError as e:
+            if "NoSuchBucketPolicy" in str(e):
+                self.add_finding(
+                    check_id="CIS-3.5",
+                    check_name="S3 SSL Enforcement",
+                    status=Status.FAIL,
+                    severity=Severity.HIGH,
+                    resource_id=bucket_name,
+                    resource_type="AWS::S3::Bucket",
+                    region="global",
+                    description=f"Bucket '{bucket_name}' has no bucket policy (SSL not enforced)",
+                    remediation=f"Add a bucket policy to deny non-SSL requests for '{bucket_name}'",
+                )

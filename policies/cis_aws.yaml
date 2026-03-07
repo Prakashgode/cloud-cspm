@@ -1,0 +1,84 @@
+policies:
+  - id: CIS-1.1
+    name: "Root Account MFA"
+    description: "Ensure MFA is enabled for the root account"
+    severity: CRITICAL
+    scanner: iam
+    check: root_mfa_enabled
+
+  - id: CIS-1.2
+    name: "IAM Password Policy"
+    description: "Ensure IAM password policy requires minimum length of 14"
+    severity: HIGH
+    scanner: iam
+    check: password_policy_strength
+
+  - id: CIS-2.1
+    name: "CloudTrail Enabled"
+    description: "Ensure CloudTrail is enabled in all regions"
+    severity: CRITICAL
+    scanner: logging
+    check: cloudtrail_all_regions
+
+  - id: CIS-2.2
+    name: "CloudTrail Log Validation"
+    description: "Ensure CloudTrail log file validation is enabled"
+    severity: HIGH
+    scanner: logging
+    check: cloudtrail_log_validation
+
+  - id: CIS-3.1
+    name: "S3 Public Access"
+    description: "Ensure S3 buckets do not allow public read access"
+    severity: CRITICAL
+    scanner: s3
+    check: no_public_read
+
+  - id: CIS-3.2
+    name: "S3 Encryption"
+    description: "Ensure S3 buckets have server-side encryption enabled"
+    severity: HIGH
+    scanner: s3
+    check: encryption_enabled
+
+  - id: CIS-4.1
+    name: "Security Group SSH"
+    description: "Ensure no security groups allow ingress from 0.0.0.0/0 to port 22"
+    severity: CRITICAL
+    scanner: ec2
+    check: no_open_ssh
+
+  - id: CIS-4.2
+    name: "Security Group RDP"
+    description: "Ensure no security groups allow ingress from 0.0.0.0/0 to port 3389"
+    severity: CRITICAL
+    scanner: ec2
+    check: no_open_rdp
+
+  - id: CIS-4.3
+    name: "Default Security Group"
+    description: "Ensure default security groups restrict all traffic"
+    severity: HIGH
+    scanner: ec2
+    check: default_sg_restricted
+
+  - id: CIS-5.1
+    name: "RDS Encryption"
+    description: "Ensure RDS instances have encryption at rest enabled"
+    severity: HIGH
+    scanner: rds
+    check: encryption_at_rest
+
+  - id: CIS-5.2
+    name: "RDS Public Access"
+    description: "Ensure RDS instances are not publicly accessible"
+    severity: CRITICAL
+    scanner: rds
+    check: no_public_access
+
+  - id: CIS-6.1
+    name: "EBS Encryption"
+    description: "Ensure EBS volumes are encrypted"
+    severity: HIGH
+    scanner: ec2
+    check: ebs_encrypted

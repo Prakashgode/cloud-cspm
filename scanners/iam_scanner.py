@@ -8,7 +8,9 @@ class IAMScanner(BaseScanner):
         iam = self.session.client("iam")
         self._check_root_mfa(iam)
         self._check_password_policy(iam)
+        self._check_unused_credentials(iam)
         self._check_access_keys_rotation(iam)
+        self._check_mfa_for_console_users(iam)
         return self.findings
 
     def _check_root_mfa(self, iam):
@@ -94,6 +96,45 @@ class IAMScanner(BaseScanner):
                 remediation="Create a password policy using aws iam update-account-password-policy",
             )
 
+    def _check_unused_credentials(self, iam):
+        try:
+            # credential report takes a sec to generate, might need to retry
+            response = iam.generate_credential_report()
+            if response["State"] == "COMPLETE":
+                report = iam.get_credential_report()
+                content = report["Content"].decode("utf-8")
+                import csv
+                from io import StringIO
+                from datetime import datetime, timedelta
+
+                reader = csv.DictReader(StringIO(content))
+                threshold = datetime.utcnow() - timedelta(days=90)
+
+                for row in reader:
+                    user = row["user"]
+                    if user == "<root_account>":
+                        continue
+
+                    last_used = row.get("password_last_used", "N/A")
+                    if last_used not in ("N/A", "no_information", "not_supported"):
+                        last_used_date = datetime.strptime(
+                            last_used.split("T")[0], "%Y-%m-%d"
+                        )
+                        if last_used_date < threshold:
+                            self.add_finding(
+                                check_id="CIS-1.3",
+                                check_name="Unused Credentials",
+                                status=Status.FAIL,
+                                severity=Severity.MEDIUM,
+                                resource_id=user,
+                                resource_type="AWS::IAM::User",
+                                region="global",
+                                description=f"User '{user}' has not used password in 90+ days (last used: {last_used})",
+                                remediation=f"Disable or remove unused credentials for user '{user}'",
+                            )
+        except ClientError:
+            pass
+
     def _check_access_keys_rotation(self, iam):
         try:
             users = iam.list_users()["Users"]
@@ -117,8 +158,35 @@ class IAMScanner(BaseScanner):
                                 resource_id=f"{username}/{key['AccessKeyId']}",
                                 resource_type="AWS::IAM::AccessKey",
                                 region="global",
-                                description=f"Access key for user '{username}' has not been rotated in 90+ days",
+                                description=f"Access key '{key['AccessKeyId']}' for user '{username}' has not been rotated in 90+ days",
                                 remediation=f"Rotate access key for user '{username}': aws iam create-access-key && aws iam delete-access-key",
                             )
+        except ClientError:
+            pass
+
+    def _check_mfa_for_console_users(self, iam):
+        try:
+            users = iam.list_users()["Users"]
+            for user in users:
+                username = user["UserName"]
+                try:
+                    login_profile = iam.get_login_profile(UserName=username)
+                    mfa_devices = iam.list_mfa_devices(UserName=username)[
+                        "MFADevices"
+                    ]
+                    if not mfa_devices:
+                        self.add_finding(
+                            check_id="CIS-1.5",
+                            check_name="Console User MFA",
+                            status=Status.FAIL,
+                            severity=Severity.HIGH,
+                            resource_id=username,
+                            resource_type="AWS::IAM::User",
+                            region="global",
+                            description=f"User '{username}' has console access but no MFA enabled",
+                            remediation=f"Enable MFA for user '{username}' via IAM console",
+                        )
+                except iam.exceptions.NoSuchEntityException:
+                    pass
         except ClientError:
             pass
