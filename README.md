@@ -1,5 +1,7 @@
 # Cloud CSPM
 
+![CI](https://github.com/Prakashgode/cloud-cspm/actions/workflows/ci.yml/badge.svg)
+
 Scans AWS accounts for security misconfigurations against CIS benchmark controls. Covers IAM, S3, EC2, RDS, and CloudTrail.
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white)
@@ -49,40 +51,23 @@ python cspm.py --output report.csv
 ## Sample Output
 
 ```
-╭──────────────────────────────────╮
-│          Cloud CSPM              │
-│  AWS Security Posture Management │
-╰──────────────────────────────────╯
+$ python cspm.py --profile default --region us-east-1
 
-Authenticated as: arn:aws:iam::123456789012:user/security-auditor
-Account: 123456789012
+Scanning IAM...
+[CRITICAL] Root account has active access keys (CIS 1.4)
+[HIGH] 3 IAM users without MFA enabled (CIS 1.2)
+[PASS] No inline policies on IAM users (CIS 1.16)
 
-Scanning: IAM Security...
-  4 passed | 2 failed
-Scanning: S3 Bucket Security...
-  3 passed | 5 failed
-Scanning: EC2 & Network Security...
-  6 passed | 3 failed
+Scanning S3...
+[HIGH] Bucket "dev-logs-2024" has public read access (CIS 2.1.1)
+[MEDIUM] Bucket "backups" missing server-side encryption (CIS 2.1.2)
+[PASS] All buckets have versioning enabled
 
-┌──────────────────── Security Findings ────────────────────┐
-│ ID       │ Check              │ Status │ Severity │ ...   │
-├──────────┼────────────────────┼────────┼──────────┤       │
-│ CIS-1.1  │ Root Account MFA   │  FAIL  │ CRITICAL │       │
-│ CIS-3.1  │ S3 Public Access   │  FAIL  │ CRITICAL │       │
-│ CIS-4.1  │ Open SSH Port      │  FAIL  │ CRITICAL │       │
-└──────────────────────────────────────────────────────────┘
+Scanning EC2...
+[HIGH] Security group sg-0a1b2c allows 0.0.0.0/0 on port 22 (CIS 5.2)
+[PASS] No public instances found
 
-╭──────────── Scan Summary ─────────────╮
-│ Total Checks: 24                      │
-│ Passed: 14                            │
-│ Failed: 10                            │
-│ Security Score: 58.3%                 │
-│                                       │
-│ Failures by Severity:                 │
-│   CRITICAL: 4                         │
-│   HIGH: 3                             │
-│   MEDIUM: 3                           │
-╰───────────────────────────────────────╯
+Results: 4 critical/high, 1 medium, 3 passed | 3 services scanned
 ```
 
 ## Structure
