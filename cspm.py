@@ -49,7 +49,8 @@ STATUS_ICONS = {
     help="Scanners to run",
 )
 @click.option("--output", default=None, help="Output file path (JSON or CSV)")
-def main(profile, region, scanner, output):
+@click.option("--severity", default=None, type=click.Choice(["CRITICAL", "HIGH", "MEDIUM", "LOW"]), help="Minimum severity to display")
+def main(profile, region, scanner, output, severity):
     console.print(
         Panel(
             Text("Cloud CSPM", style="bold cyan", justify="center"),
@@ -95,6 +96,15 @@ def main(profile, region, scanner, output):
         except Exception as e:
             console.print(f"  [red]Error: {e}[/red]")
 
+    # filter out findings below the requested severity threshold
+    if severity:
+        severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+        min_index = severity_order.index(severity)
+        all_findings = [
+            f for f in all_findings
+            if severity_order.index(f.severity.value) <= min_index
+        ]
+
     console.print()
     table = Table(title="Security Findings", show_lines=True)
     table.add_column("ID", style="dim", width=10)
@@ -104,7 +114,10 @@ def main(profile, region, scanner, output):
     table.add_column("Resource", width=30)
     table.add_column("Description", width=50)
 
-    for f in all_findings:
+    for f in sorted(all_findings, key=lambda x: (
+        x.status.value != "FAIL",
+        ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"].index(x.severity.value),
+    )):
         severity_style = SEVERITY_COLORS.get(f.severity.value, "")
         table.add_row(
             f.check_id,
