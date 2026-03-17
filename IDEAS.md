@@ -10,3 +10,4 @@
 1. iam (most common misconfigs)
 2. s3 (public bucket incidents)
 3. ec2 security groups
+# Lambda checks - TODO
