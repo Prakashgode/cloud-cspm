@@ -4,11 +4,11 @@
 ![CodeQL](https://github.com/Prakashgode/cloud-cspm/actions/workflows/codeql.yml/badge.svg)
 
 Cloud CSPM is a lightweight AWS Cloud Security Posture Management CLI that scans
-for CIS-style security misconfigurations across IAM, S3, EC2, RDS, and logging,
-plus Lambda best-practice controls for public access, encryption, network
-placement, tagging, and tracing. It uses `boto3`, `click`, and `rich`, and now
-includes modern Python project metadata, `uv` workflows, Ruff, mypy,
-Dependabot, and CodeQL.
+for CIS-style security misconfigurations across IAM, S3, EC2, RDS, logging,
+Lambda, and Secrets Manager. It supports cross-account scanning with STS
+AssumeRole, uses `boto3`, `click`, and `rich`, and includes modern Python
+project metadata, `uv` workflows, Ruff, mypy, Dependabot, dependency review,
+CodeQL, and native SARIF export.
 
 ![Python](https://img.shields.io/badge/Python-3.11%20to%203.14-blue?logo=python&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-Security-orange?logo=amazon-web-services&logoColor=white)
@@ -24,12 +24,14 @@ Dependabot, and CodeQL.
 | RDS | Encryption, public access, Multi-AZ, auto upgrades, backup retention, deletion protection |
 | Logging | CloudTrail enabled, log validation, KMS encryption, VPC flow logs |
 | Lambda | Public access, environment KMS encryption, VPC attachment, multi-AZ subnets, tags, X-Ray tracing |
+| Secrets Manager | Rotation enabled, recent rotation, recent access, tags |
 
 ## Requirements
 
 - Python 3.11 to 3.14
 - AWS credentials configured with `aws configure` or environment variables
 - Read-only AWS access such as the `SecurityAudit` managed policy
+- `sts:AssumeRole` permission if you want to scan a different AWS account
 
 ## Quick Start
 
@@ -68,7 +70,7 @@ cloud-cspm --region us-east-1
 
 # specific scanners
 cloud-cspm --scanner iam --scanner s3
-cloud-cspm --scanner lambda
+cloud-cspm --scanner lambda --scanner secrets
 
 # filter by severity
 cloud-cspm --severity CRITICAL
@@ -76,6 +78,49 @@ cloud-cspm --severity CRITICAL
 # export results
 cloud-cspm --output report.json
 cloud-cspm --output report.csv
+cloud-cspm --output report.sarif
+```
+
+## Sample Reports
+
+Deterministic portfolio artifacts are committed under:
+
+- [`samples/demo-report.json`](samples/demo-report.json)
+- [`samples/demo-report.csv`](samples/demo-report.csv)
+- [`samples/demo-report.sarif`](samples/demo-report.sarif)
+
+The SARIF artifact contains actionable `FAIL` and `ERROR` findings only, which
+is useful for machine processing and downstream security tooling.
+
+This SARIF export models findings against AWS resource URIs, not repository
+files. It is intended as a generic interchange format for cloud-security
+pipelines, not as a GitHub code-scanning upload format.
+
+Regenerate the demo assets locally with:
+
+```bash
+uv run python scripts/generate_sample_artifacts.py
+```
+
+![Cloud CSPM CLI demo](assets/cloud-cspm-demo.svg)
+
+## Cross-Account Scanning
+
+Use STS AssumeRole to scan a different AWS account with the same CLI:
+
+```bash
+cloud-cspm \
+  --profile security-audit \
+  --role-arn arn:aws:iam::123456789012:role/SecurityAudit
+```
+
+If the target role requires an external ID:
+
+```bash
+cloud-cspm \
+  --profile security-audit \
+  --role-arn arn:aws:iam::123456789012:role/SecurityAudit \
+  --external-id portfolio-demo
 ```
 
 ## Development
@@ -95,7 +140,7 @@ uv run mypy
 uv run pytest -v
 ```
 
-The repo now includes:
+The repo includes:
 
 - `pyproject.toml` for project metadata and tool configuration
 - `uv.lock` for reproducible dependency resolution
@@ -103,13 +148,20 @@ The repo now includes:
 - mypy for basic type checking
 - GitHub Actions matrix testing on Python 3.11 to 3.14
 - Dependabot for pip and GitHub Actions updates
+- Dependency Review on pull requests
 - CodeQL for code scanning
+- Native SARIF export for downstream security tooling
+- moto-backed integration tests for AWS emulator coverage
+- `SECURITY.md`, `LICENSE`, and `CONTRIBUTING.md` for repo hygiene
 
 ## Project Layout
 
 ```text
 cloud-cspm/
+|-- assets/
 |-- cspm.py
+|-- samples/
+|-- scripts/
 |-- pyproject.toml
 |-- uv.lock
 |-- scanners/

@@ -9,5 +9,11 @@ build/
 venv/
 .mypy_cache/
 .ruff_cache/
-*.json
+
+# Common local report exports
+/report.json
+/report.csv
+/report.sarif
+/report.sarif.json
+
 !policies/*.yaml

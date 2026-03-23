@@ -14,26 +14,46 @@ AWS Cloud Security Posture Management (CSPM) tool that scans AWS accounts for se
 
 ```
 cloud-cspm/
-├── .github/workflows/ci.yml    # GitHub Actions: Python 3.11, pytest
-├── scanners/
-│   ├── __init__.py              # Exports all scanner classes
-│   ├── base_scanner.py          # BaseScanner, Finding dataclass, Severity/Status enums
-│   ├── iam_scanner.py           # 5 IAM checks (root MFA, password policy, key rotation, etc.)
-│   ├── s3_scanner.py            # 5 S3 checks per bucket (public access, encryption, versioning, logging, SSL)
-│   ├── ec2_scanner.py           # 5 EC2/network checks (open ports, default SGs, EBS encryption, public instances)
-│   ├── rds_scanner.py           # 6 RDS checks (encryption, public access, multi-AZ, backups, deletion protection)
-│   └── logging_scanner.py       # 4 logging checks (CloudTrail, VPC flow logs)
-├── reports/
-│   ├── __init__.py
-│   └── generator.py             # ReportGenerator: JSON/CSV export + summary with score
-├── policies/
-│   └── cis_aws.yaml             # CIS benchmark policy definitions (YAML)
-├── tests/
-│   └── test_scanners.py         # 13 unit tests, all boto3 calls mocked
-├── cspm.py                      # CLI entry point (Click-based)
-├── requirements.txt             # boto3, botocore, rich, click, pyyaml, jinja2
-├── README.md
-└── IDEAS.md                     # Roadmap ideas
+|-- .github/workflows/
+|   |-- ci.yml                      # GitHub Actions matrix: Ruff, mypy, pytest
+|   |-- codeql.yml                  # CodeQL analysis
+|   `-- dependency-review.yml       # PR dependency review
+|-- assets/
+|   `-- cloud-cspm-demo.svg         # README demo image
+|-- scanners/
+|   |-- __init__.py                 # Exports all scanner classes
+|   |-- base_scanner.py             # BaseScanner, Finding dataclass, Severity/Status enums
+|   |-- iam_scanner.py              # IAM checks (root MFA, password policy, key rotation, etc.)
+|   |-- s3_scanner.py               # S3 checks (public access, encryption, versioning, logging, SSL)
+|   |-- ec2_scanner.py              # EC2/network checks (open ports, default SGs, EBS encryption, public instances)
+|   |-- rds_scanner.py              # RDS checks (encryption, public access, multi-AZ, backups, deletion protection)
+|   |-- logging_scanner.py          # Logging checks (CloudTrail, VPC flow logs)
+|   |-- lambda_scanner.py           # Lambda checks (public access, env KMS, VPC, tags, tracing)
+|   `-- secretsmanager_scanner.py   # Secrets Manager checks (rotation, recent access, tags)
+|-- reports/
+|   |-- __init__.py
+|   `-- generator.py                # ReportGenerator: JSON/CSV/SARIF export + summary
+|-- policies/
+|   |-- cis_aws.yaml
+|   |-- lambda_best_practices.yaml
+|   `-- secretsmanager_best_practices.yaml
+|-- samples/
+|   |-- demo-report.json
+|   |-- demo-report.csv
+|   `-- demo-report.sarif
+|-- scripts/
+|   `-- generate_sample_artifacts.py
+|-- tests/
+|   |-- test_scanners.py
+|   |-- test_cspm.py
+|   |-- test_secretsmanager_scanner.py
+|   `-- test_integration_moto.py
+|-- cspm.py                         # CLI entry point (Click-based)
+|-- pyproject.toml                  # Project metadata and tool configuration
+|-- uv.lock                         # Locked dependency graph
+|-- requirements.txt                # Pip fallback install path
+|-- README.md
+`-- IDEAS.md                        # Roadmap ideas
 ```
 
 ---
@@ -42,14 +62,14 @@ cloud-cspm/
 
 ```
 python cspm.py [options]
-  1. Parse CLI args (--profile, --region, --scanner, --output, --severity)
+  1. Parse CLI args (--profile, --region, --role-arn, --scanner, --output, --severity)
   2. Create boto3.Session
-  3. Authenticate via STS GetCallerIdentity
+  3. Optionally assume a target role with STS AssumeRole
   4. Run selected scanners (each returns list[Finding])
   5. Filter by severity if specified
   6. Display Rich table (FAIL findings first, sorted by severity)
   7. Show summary panel (score = passed/total * 100)
-  8. Export to JSON or CSV if --output specified
+  8. Export to JSON, CSV, or SARIF if --output specified
 ```
 
 **Scanner registry** in cspm.py:
@@ -60,6 +80,8 @@ SCANNERS = {
     "ec2": ("EC2 & Network Security", EC2Scanner),
     "rds": ("RDS Database Security", RDSScanner),
     "logging": ("Logging & Monitoring", LoggingScanner),
+    "lambda": ("Lambda Security", LambdaScanner),
+    "secrets": ("Secrets Manager Security", SecretsManagerScanner),
 }
 ```
 
@@ -190,3 +212,4 @@ jinja2>=3.1.0       # Template engine (imported but not actively used yet)
 6. **Keep it simple** - no over-engineering, no unnecessary abstractions
 7. **Branch from master**, PR into master
 8. **Do not touch GitHub remote state without explicit user approval in this thread** - no push, pull, branch deletion, PR creation, or other remote changes unless the user clearly asks for that action
+

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+from typing import Any
 
 import boto3
 import click
@@ -10,7 +11,15 @@ from rich.table import Table
 from rich.text import Text
 
 from reports.generator import ReportGenerator
-from scanners import EC2Scanner, IAMScanner, LambdaScanner, LoggingScanner, RDSScanner, S3Scanner
+from scanners import (
+    EC2Scanner,
+    IAMScanner,
+    LambdaScanner,
+    LoggingScanner,
+    RDSScanner,
+    S3Scanner,
+    SecretsManagerScanner,
+)
 from scanners.base_scanner import Finding, Status
 
 console = Console()
@@ -23,6 +32,7 @@ SCANNERS = {
     "rds": ("RDS Database Security", RDSScanner),
     "logging": ("Logging & Monitoring", LoggingScanner),
     "lambda": ("Lambda Security", LambdaScanner),
+    "secrets": ("Secrets Manager Security", SecretsManagerScanner),
 }
 
 SEVERITY_COLORS = {
@@ -42,9 +52,81 @@ STATUS_ICONS = {
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
 
 
+def create_base_session(profile: str | None, region: str | None):
+    session_kwargs: dict[str, str] = {}
+    if profile:
+        session_kwargs["profile_name"] = profile
+    if region:
+        session_kwargs["region_name"] = region
+    return boto3.Session(**session_kwargs)
+
+
+def get_identity(session) -> dict[str, Any]:
+    sts = session.client("sts")
+    return sts.get_caller_identity()
+
+
+def assume_role_session(
+    session,
+    role_arn: str,
+    session_name: str,
+    external_id: str | None,
+    region: str | None,
+):
+    sts = session.client("sts")
+    assume_kwargs = {
+        "RoleArn": role_arn,
+        "RoleSessionName": session_name,
+    }
+    if external_id:
+        assume_kwargs["ExternalId"] = external_id
+
+    response = sts.assume_role(**assume_kwargs)
+    credentials = response["Credentials"]
+
+    return boto3.Session(
+        aws_access_key_id=credentials["AccessKeyId"],
+        aws_secret_access_key=credentials["SecretAccessKey"],
+        aws_session_token=credentials["SessionToken"],
+        region_name=region,
+    )
+
+
+def build_scan_session(
+    profile: str | None,
+    region: str | None,
+    role_arn: str | None,
+    external_id: str | None,
+    session_name: str,
+):
+    base_session = create_base_session(profile, region)
+    base_identity = get_identity(base_session)
+
+    if not role_arn:
+        return base_session, base_identity, None
+
+    assumed_session = assume_role_session(
+        base_session,
+        role_arn,
+        session_name,
+        external_id,
+        region,
+    )
+    assumed_identity = get_identity(assumed_session)
+    return assumed_session, assumed_identity, base_identity
+
+
 @click.command()
 @click.option("--profile", default=None, help="AWS CLI profile name")
 @click.option("--region", default=None, help="AWS region (default: all regions)")
+@click.option("--role-arn", default=None, help="Assume this IAM role before scanning")
+@click.option("--external-id", default=None, help="External ID for STS AssumeRole if required")
+@click.option(
+    "--session-name",
+    default="cloud-cspm",
+    show_default=True,
+    help="STS role session name when using --role-arn",
+)
 @click.option(
     "--scanner",
     multiple=True,
@@ -52,14 +134,14 @@ SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
     default=["all"],
     help="Scanners to run",
 )
-@click.option("--output", default=None, help="Output file path (JSON or CSV)")
+@click.option("--output", default=None, help="Output file path (JSON, CSV, or SARIF)")
 @click.option(
     "--severity",
     default=None,
     type=click.Choice(["CRITICAL", "HIGH", "MEDIUM", "LOW"]),
     help="Minimum severity to display",
 )
-def main(profile, region, scanner, output, severity):
+def main(profile, region, role_arn, external_id, session_name, scanner, output, severity):
     console.print(
         Panel(
             Text("Cloud CSPM", style="bold cyan", justify="center"),
@@ -68,21 +150,25 @@ def main(profile, region, scanner, output, severity):
         )
     )
 
-    session_kwargs = {}
-    if profile:
-        session_kwargs["profile_name"] = profile
-    if region:
-        session_kwargs["region_name"] = region
-
     try:
-        session = boto3.Session(**session_kwargs)
-        sts = session.client("sts")
-        identity = sts.get_caller_identity()
-        console.print(f"\n[green]Authenticated as:[/green] {identity['Arn']}")
-        console.print(f"[green]Account:[/green] {identity['Account']}\n")
+        session, identity, source_identity = build_scan_session(
+            profile,
+            region,
+            role_arn,
+            external_id,
+            session_name,
+        )
+
+        if source_identity:
+            console.print(f"\n[green]Source identity:[/green] {source_identity['Arn']}")
+            console.print(f"[green]Assumed role:[/green] {identity['Arn']}")
+            console.print(f"[green]Target account:[/green] {identity['Account']}\n")
+        else:
+            console.print(f"\n[green]Authenticated as:[/green] {identity['Arn']}")
+            console.print(f"[green]Account:[/green] {identity['Account']}\n")
     except Exception as e:
         console.print(f"[red]Authentication failed:[/red] {e}")
-        console.print("Configure AWS credentials: aws configure")
+        console.print("Configure AWS credentials with aws configure or provide a valid role ARN")
         sys.exit(1)
 
     scanners_to_run = list(SCANNERS.keys()) if "all" in scanner else list(scanner)
@@ -103,7 +189,6 @@ def main(profile, region, scanner, output, severity):
         except Exception as e:
             console.print(f"  [red]Error: {e}[/red]")
 
-    # filter out findings below the requested severity threshold
     if severity:
         min_index = SEVERITY_ORDER.index(severity)
         all_findings = [
@@ -112,28 +197,28 @@ def main(profile, region, scanner, output, severity):
 
     console.print()
     table = Table(title="Security Findings", show_lines=True)
-    table.add_column("ID", style="dim", width=10)
-    table.add_column("Check", width=25)
+    table.add_column("ID", style="dim", width=12)
+    table.add_column("Check", width=28)
     table.add_column("Status", width=8, justify="center")
     table.add_column("Severity", width=10, justify="center")
     table.add_column("Resource", width=30)
     table.add_column("Description", width=50)
 
-    for f in sorted(
+    for finding in sorted(
         all_findings,
-        key=lambda x: (
-            x.status.value != "FAIL",
-            SEVERITY_ORDER.index(x.severity.value),
+        key=lambda item: (
+            item.status.value != "FAIL",
+            SEVERITY_ORDER.index(item.severity.value),
         ),
     ):
-        severity_style = SEVERITY_COLORS.get(f.severity.value, "")
+        severity_style = SEVERITY_COLORS.get(finding.severity.value, "")
         table.add_row(
-            f.check_id,
-            f.check_name,
-            STATUS_ICONS.get(f.status.value, f.status.value),
-            f"[{severity_style}]{f.severity.value}[/{severity_style}]",
-            f.resource_id[:30],
-            f.description[:50],
+            finding.check_id,
+            finding.check_name,
+            STATUS_ICONS.get(finding.status.value, finding.status.value),
+            f"[{severity_style}]{finding.severity.value}[/{severity_style}]",
+            finding.resource_id[:30],
+            finding.description[:50],
         )
 
     console.print(table)
@@ -150,8 +235,8 @@ def main(profile, region, scanner, output, severity):
             f"[bold]Security Score:[/bold] {summary['score']}%\n\n"
             f"[bold]Failures by Severity:[/bold]\n"
             + "\n".join(
-                f"  [{SEVERITY_COLORS.get(k, '')}]{k}:[/{SEVERITY_COLORS.get(k, '')}] {v}"
-                for k, v in summary["failures_by_severity"].items()
+                f"  [{SEVERITY_COLORS.get(key, '')}]{key}:[/{SEVERITY_COLORS.get(key, '')}] {value}"
+                for key, value in summary["failures_by_severity"].items()
             ),
             title="Scan Summary",
             border_style="cyan",
@@ -159,8 +244,11 @@ def main(profile, region, scanner, output, severity):
     )
 
     if output:
-        if output.endswith(".csv"):
+        normalized_output = output.lower()
+        if normalized_output.endswith(".csv"):
             report.to_csv(output)
+        elif normalized_output.endswith(".sarif") or normalized_output.endswith(".sarif.json"):
+            report.to_sarif(output)
         else:
             report.to_json(output)
         console.print(f"\n[green]Report saved to:[/green] {output}")

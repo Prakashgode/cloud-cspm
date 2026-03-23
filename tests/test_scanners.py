@@ -461,6 +461,29 @@ class TestReportGenerator:
         finally:
             os.unlink(path)
 
+    def test_to_sarif(self):
+        gen = ReportGenerator(self._sample_findings(), timestamp="2026-03-22T15:30:00+00:00")
+        fd, path = tempfile.mkstemp(suffix=".sarif")
+        os.close(fd)
+        try:
+            gen.to_sarif(path)
+            with open(path) as f:
+                data = json.load(f)
+            assert data["version"] == "2.1.0"
+            run = data["runs"][0]
+            assert run["automationDetails"]["id"] == "cloud-cspm/local-scan"
+            assert len(run["results"]) == 2
+            assert {result["ruleId"] for result in run["results"]} == {"T-2", "T-3"}
+            for result in run["results"]:
+                location = result["locations"][0]
+                assert location["physicalLocation"]["artifactLocation"]["uri"].startswith(
+                    "aws-resource://"
+                )
+                assert location["physicalLocation"]["region"]["startLine"] == 1
+                assert "primaryLocationLineHash" in result["partialFingerprints"]
+        finally:
+            os.unlink(path)
+
 
 # ---------------------------------------------------------------------------
 # module imports

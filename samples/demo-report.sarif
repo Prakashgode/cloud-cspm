@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "cloud-cspm",
+          "informationUri": "https://github.com/Prakashgode/cloud-cspm",
+          "rules": [
+            {
+              "id": "CIS-1.1",
+              "name": "Avoid Root Account Without MFA",
+              "shortDescription": {
+                "text": "Avoid Root Account Without MFA"
+              },
+              "fullDescription": {
+                "text": "Root account MFA is not enabled"
+              },
+              "help": {
+                "text": "Enable a hardware or virtual MFA device on the root account"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "cloud",
+                  "cloud-cspm"
+                ],
+                "precision": "high",
+                "security-severity": "9.0",
+                "resource_type": "AWS::IAM::Account"
+              }
+            },
+            {
+              "id": "CIS-3.2",
+              "name": "S3 Encryption",
+              "shortDescription": {
+                "text": "S3 Encryption"
+              },
+              "fullDescription": {
+                "text": "Bucket 'portfolio-logs' has encryption enabled (AES256)"
+              },
+              "help": {
+                "text": "aws s3api put-bucket-encryption --bucket portfolio-logs --server-side-encryption-configuration '{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "cloud",
+                  "cloud-cspm"
+                ],
+                "precision": "high",
+                "security-severity": "8.0",
+                "resource_type": "AWS::S3::Bucket"
+              }
+            },
+            {
+              "id": "LAMBDA-1",
+              "name": "Lambda Public Access",
+              "shortDescription": {
+                "text": "Lambda Public Access"
+              },
+              "fullDescription": {
+                "text": "Function URL or policy allows public invoke"
+              },
+              "help": {
+                "text": "Require AWS_IAM authentication and remove wildcard invoke permissions"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "cloud",
+                  "cloud-cspm"
+                ],
+                "precision": "high",
+                "security-severity": "9.0",
+                "resource_type": "AWS::Lambda::Function"
+              }
+            },
+            {
+              "id": "SECRETS-1",
+              "name": "Secrets Manager Rotation Enabled",
+              "shortDescription": {
+                "text": "Secrets Manager Rotation Enabled"
+              },
+              "fullDescription": {
+                "text": "Secret rotation is disabled"
+              },
+              "help": {
+                "text": "Enable automatic rotation for the secret and attach a rotation Lambda"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "security",
+                  "cloud",
+                  "cloud-cspm"
+                ],
+                "precision": "high",
+                "security-severity": "5.0",
+                "resource_type": "AWS::SecretsManager::Secret"
+              }
+            }
+          ]
+        }
+      },
+      "automationDetails": {
+        "id": "cloud-cspm/local-scan"
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "endTimeUtc": "2026-03-22T15:30:00+00:00",
+          "properties": {
+            "summary": {
+              "scan_timestamp": "2026-03-22T15:30:00+00:00",
+              "total_checks": 4,
+              "passed": 1,
+              "failed": 3,
+              "errors": 0,
+              "score": 25.0,
+              "failures_by_severity": {
+                "CRITICAL": 2,
+                "MEDIUM": 1
+              }
+            }
+          }
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "CIS-1.1",
+          "level": "error",
+          "kind": "fail",
+          "message": {
+            "text": "Root account MFA is not enabled Resource: root-account (global)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "aws-resource://global/AWS%3A%3AIAM%3A%3AAccount/root-account"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "message": {
+                "text": "AWS::IAM::Account root-account in global"
+              },
+              "logicalLocations": [
+                {
+                  "name": "root-account",
+                  "kind": "cloud-resource",
+                  "fullyQualifiedName": "global:AWS::IAM::Account:root-account"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "primaryLocationLineHash": "43895e768b7bc5ad:1"
+          },
+          "properties": {
+            "status": "FAIL",
+            "severity": "CRITICAL",
+            "resource_id": "root-account",
+            "resource_type": "AWS::IAM::Account",
+            "region": "global",
+            "timestamp": "2026-03-22T15:30:00+00:00",
+            "remediation": "Enable a hardware or virtual MFA device on the root account"
+          }
+        },
+        {
+          "ruleId": "LAMBDA-1",
+          "level": "error",
+          "kind": "fail",
+          "message": {
+            "text": "Function URL or policy allows public invoke Resource: public-demo-fn (us-east-1)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "aws-resource://us-east-1/AWS%3A%3ALambda%3A%3AFunction/public-demo-fn"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "message": {
+                "text": "AWS::Lambda::Function public-demo-fn in us-east-1"
+              },
+              "logicalLocations": [
+                {
+                  "name": "public-demo-fn",
+                  "kind": "cloud-resource",
+                  "fullyQualifiedName": "us-east-1:AWS::Lambda::Function:public-demo-fn"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "primaryLocationLineHash": "38bcfb0fb632abc8:1"
+          },
+          "properties": {
+            "status": "FAIL",
+            "severity": "CRITICAL",
+            "resource_id": "public-demo-fn",
+            "resource_type": "AWS::Lambda::Function",
+            "region": "us-east-1",
+            "timestamp": "2026-03-22T15:30:00+00:00",
+            "remediation": "Require AWS_IAM authentication and remove wildcard invoke permissions"
+          }
+        },
+        {
+          "ruleId": "SECRETS-1",
+          "level": "warning",
+          "kind": "fail",
+          "message": {
+            "text": "Secret rotation is disabled Resource: prod/db/password (us-east-1)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "aws-resource://us-east-1/AWS%3A%3ASecretsManager%3A%3ASecret/prod%2Fdb%2Fpassword"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "message": {
+                "text": "AWS::SecretsManager::Secret prod/db/password in us-east-1"
+              },
+              "logicalLocations": [
+                {
+                  "name": "prod/db/password",
+                  "kind": "cloud-resource",
+                  "fullyQualifiedName": "us-east-1:AWS::SecretsManager::Secret:prod/db/password"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "primaryLocationLineHash": "701668893c72c714:1"
+          },
+          "properties": {
+            "status": "FAIL",
+            "severity": "MEDIUM",
+            "resource_id": "prod/db/password",
+            "resource_type": "AWS::SecretsManager::Secret",
+            "region": "us-east-1",
+            "timestamp": "2026-03-22T15:30:00+00:00",
+            "remediation": "Enable automatic rotation for the secret and attach a rotation Lambda"
+          }
+        }
+      ],
+      "properties": {
+        "summary": {
+          "scan_timestamp": "2026-03-22T15:30:00+00:00",
+          "total_checks": 4,
+          "passed": 1,
+          "failed": 3,
+          "errors": 0,
+          "score": 25.0,
+          "failures_by_severity": {
+            "CRITICAL": 2,
+            "MEDIUM": 1
+          }
+        },
+        "actionable_findings": 3
+      }
+    }
+  ]
+}

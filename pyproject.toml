@@ -33,6 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "moto[s3]>=5.1.22",
   "mypy>=1.18.2",
   "pytest>=9.0.0",
   "ruff>=0.14.0",
@@ -62,7 +63,7 @@ include = [
 
 [tool.mypy]
 check_untyped_defs = true
-files = ["cspm.py", "reports", "scanners"]
+files = ["cspm.py", "reports", "scanners", "scripts"]
 ignore_missing_imports = true
 python_version = "3.11"
 warn_unused_ignores = true

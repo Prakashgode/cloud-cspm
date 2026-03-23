@@ -1,0 +1,5 @@
+Check ID,Check Name,Status,Severity,Resource ID,Resource Type,Region,Description,Remediation
+CIS-1.1,Avoid Root Account Without MFA,FAIL,CRITICAL,root-account,AWS::IAM::Account,global,Root account MFA is not enabled,Enable a hardware or virtual MFA device on the root account
+CIS-3.2,S3 Encryption,PASS,HIGH,portfolio-logs,AWS::S3::Bucket,global,Bucket 'portfolio-logs' has encryption enabled (AES256),"aws s3api put-bucket-encryption --bucket portfolio-logs --server-side-encryption-configuration '{""Rules"":[{""ApplyServerSideEncryptionByDefault"":{""SSEAlgorithm"":""AES256""}}]}'"
+LAMBDA-1,Lambda Public Access,FAIL,CRITICAL,public-demo-fn,AWS::Lambda::Function,us-east-1,Function URL or policy allows public invoke,Require AWS_IAM authentication and remove wildcard invoke permissions
+SECRETS-1,Secrets Manager Rotation Enabled,FAIL,MEDIUM,prod/db/password,AWS::SecretsManager::Secret,us-east-1,Secret rotation is disabled,Enable automatic rotation for the secret and attach a rotation Lambda
