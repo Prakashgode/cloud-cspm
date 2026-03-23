@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cloud-cspm"
+version = "0.2.0"
+description = "AWS Cloud Security Posture Management CLI for CIS benchmark checks."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Prakash Gode" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Information Technology",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Security",
+  "Topic :: System :: Systems Administration",
+]
+dependencies = [
+  "boto3>=1.42.0",
+  "botocore>=1.42.0",
+  "click>=8.3.0",
+  "Jinja2>=3.1.6",
+  "PyYAML>=6.0.1",
+  "rich>=14.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.18.2",
+  "pytest>=9.0.0",
+  "ruff>=0.14.0",
+]
+
+[project.scripts]
+cloud-cspm = "cspm:main"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "cspm.py",
+  "README.md",
+  "requirements.txt",
+  "policies/**/*.yaml",
+  "reports/**/*.py",
+  "scanners/**/*.py",
+  "tests/**/*.py",
+]
+
+[tool.hatch.build.targets.wheel]
+include = [
+  "cspm.py",
+  "policies/**/*.yaml",
+  "reports/**/*.py",
+  "scanners/**/*.py",
+]
+
+[tool.mypy]
+check_untyped_defs = true
+files = ["cspm.py", "reports", "scanners"]
+ignore_missing_imports = true
+python_version = "3.11"
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["E501"]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["reports", "scanners"]

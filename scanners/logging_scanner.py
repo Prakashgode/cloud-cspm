@@ -1,12 +1,12 @@
-import boto3
 from botocore.exceptions import ClientError
+
 from .base_scanner import BaseScanner, Finding, Severity, Status
 
 
 class LoggingScanner(BaseScanner):
     def scan(self) -> list[Finding]:
         regions = self._get_regions()
-        self._check_cloudtrail(regions)
+        self._check_cloudtrail()
         self._check_vpc_flow_logs(regions)
         return self.findings
 
@@ -18,7 +18,7 @@ class LoggingScanner(BaseScanner):
         except ClientError:
             return ["us-east-1"]
 
-    def _check_cloudtrail(self, regions):
+    def _check_cloudtrail(self):
         try:
             ct = self.session.client("cloudtrail")
             trails = ct.describe_trails()["trailList"]

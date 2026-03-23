@@ -1,19 +1,17 @@
-"""Tests for cloud-cspm scanners with mocked AWS responses."""
-
-import os
 import json
+import os
 import tempfile
-import pytest
-from unittest.mock import MagicMock, patch
-from datetime import datetime, timedelta
+from unittest.mock import MagicMock
 
-from scanners.base_scanner import BaseScanner, Finding, Severity, Status
-from scanners.iam_scanner import IAMScanner
-from scanners.s3_scanner import S3Scanner
-from scanners.ec2_scanner import EC2Scanner
-from scanners.rds_scanner import RDSScanner
-from scanners.logging_scanner import LoggingScanner
+import pytest
+from botocore.exceptions import ClientError
+
 from reports.generator import ReportGenerator
+from scanners.base_scanner import BaseScanner, Finding, Severity, Status
+from scanners.ec2_scanner import EC2Scanner
+from scanners.iam_scanner import IAMScanner
+from scanners.lambda_scanner import LambdaScanner
+from scanners.s3_scanner import S3Scanner
 
 
 def make_session():
@@ -24,6 +22,7 @@ def make_session():
 # ---------------------------------------------------------------------------
 # base_scanner
 # ---------------------------------------------------------------------------
+
 
 class TestBaseScanner:
     def test_add_finding(self):
@@ -53,14 +52,13 @@ class TestBaseScanner:
 # iam_scanner
 # ---------------------------------------------------------------------------
 
+
 class TestIAMScanner:
     def test_root_mfa_enabled(self):
         session = make_session()
         iam_client = MagicMock()
         session.client.return_value = iam_client
-        iam_client.get_account_summary.return_value = {
-            "SummaryMap": {"AccountMFAEnabled": 1}
-        }
+        iam_client.get_account_summary.return_value = {"SummaryMap": {"AccountMFAEnabled": 1}}
         iam_client.get_account_password_policy.return_value = {
             "PasswordPolicy": {
                 "MinimumPasswordLength": 14,
@@ -83,9 +81,7 @@ class TestIAMScanner:
         session = make_session()
         iam_client = MagicMock()
         session.client.return_value = iam_client
-        iam_client.get_account_summary.return_value = {
-            "SummaryMap": {"AccountMFAEnabled": 0}
-        }
+        iam_client.get_account_summary.return_value = {"SummaryMap": {"AccountMFAEnabled": 0}}
         iam_client.get_account_password_policy.return_value = {
             "PasswordPolicy": {
                 "MinimumPasswordLength": 14,
@@ -110,14 +106,13 @@ class TestIAMScanner:
 # s3_scanner
 # ---------------------------------------------------------------------------
 
+
 class TestS3Scanner:
     def test_bucket_public_access_blocked(self):
         session = make_session()
         s3_client = MagicMock()
         session.client.return_value = s3_client
-        s3_client.list_buckets.return_value = {
-            "Buckets": [{"Name": "my-secure-bucket"}]
-        }
+        s3_client.list_buckets.return_value = {"Buckets": [{"Name": "my-secure-bucket"}]}
         s3_client.get_public_access_block.return_value = {
             "PublicAccessBlockConfiguration": {
                 "BlockPublicAcls": True,
@@ -149,9 +144,7 @@ class TestS3Scanner:
         session = make_session()
         s3_client = MagicMock()
         session.client.return_value = s3_client
-        s3_client.list_buckets.return_value = {
-            "Buckets": [{"Name": "unencrypted-bucket"}]
-        }
+        s3_client.list_buckets.return_value = {"Buckets": [{"Name": "unencrypted-bucket"}]}
         s3_client.get_public_access_block.return_value = {
             "PublicAccessBlockConfiguration": {
                 "BlockPublicAcls": True,
@@ -161,7 +154,12 @@ class TestS3Scanner:
             }
         }
         s3_client.get_bucket_encryption.side_effect = ClientError(
-            {"Error": {"Code": "ServerSideEncryptionConfigurationNotFoundError", "Message": "not found"}},
+            {
+                "Error": {
+                    "Code": "ServerSideEncryptionConfigurationNotFoundError",
+                    "Message": "not found",
+                }
+            },
             "GetBucketEncryption",
         )
         s3_client.get_bucket_versioning.return_value = {"Status": "Enabled"}
@@ -182,15 +180,14 @@ class TestS3Scanner:
 # ec2_scanner
 # ---------------------------------------------------------------------------
 
+
 class TestEC2Scanner:
     def test_open_ssh_detected(self):
         session = make_session()
         ec2_client = MagicMock()
         session.client.return_value = ec2_client
 
-        ec2_client.describe_regions.return_value = {
-            "Regions": [{"RegionName": "us-east-1"}]
-        }
+        ec2_client.describe_regions.return_value = {"Regions": [{"RegionName": "us-east-1"}]}
         ec2_client.describe_security_groups.return_value = {
             "SecurityGroups": [
                 {
@@ -221,28 +218,210 @@ class TestEC2Scanner:
 
 
 # ---------------------------------------------------------------------------
+# lambda_scanner
+# ---------------------------------------------------------------------------
+
+
+class TestLambdaScanner:
+    def _make_lambda_session(
+        self, configuration, *, url_config=None, policy=None, tags=None, subnets=None
+    ):
+        session = make_session()
+        lambda_client = MagicMock()
+        ec2_global = MagicMock()
+        ec2_regional = MagicMock()
+        paginator = MagicMock()
+
+        paginator.paginate.return_value = [
+            {"Functions": [{"FunctionName": configuration["FunctionName"]}]}
+        ]
+        lambda_client.get_paginator.return_value = paginator
+        lambda_client.get_function_configuration.return_value = configuration
+
+        if isinstance(url_config, Exception):
+            lambda_client.get_function_url_config.side_effect = url_config
+        elif url_config is not None:
+            lambda_client.get_function_url_config.return_value = url_config
+        else:
+            lambda_client.get_function_url_config.side_effect = ClientError(
+                {"Error": {"Code": "ResourceNotFoundException", "Message": "not found"}},
+                "GetFunctionUrlConfig",
+            )
+
+        if isinstance(policy, Exception):
+            lambda_client.get_policy.side_effect = policy
+        elif policy is not None:
+            lambda_client.get_policy.return_value = {"Policy": json.dumps(policy)}
+        else:
+            lambda_client.get_policy.side_effect = ClientError(
+                {"Error": {"Code": "ResourceNotFoundException", "Message": "not found"}},
+                "GetPolicy",
+            )
+
+        lambda_client.list_tags.return_value = {"Tags": tags or {}}
+        ec2_global.describe_regions.return_value = {"Regions": [{"RegionName": "us-east-1"}]}
+        ec2_regional.describe_subnets.return_value = {"Subnets": subnets or []}
+
+        def client(service_name, region_name=None):
+            if service_name == "lambda":
+                return lambda_client
+            if service_name == "ec2" and region_name is None:
+                return ec2_global
+            if service_name == "ec2":
+                return ec2_regional
+            raise AssertionError(f"Unexpected service requested: {service_name}")
+
+        session.client.side_effect = client
+        return session
+
+    def test_public_function_url_detected(self):
+        configuration = {
+            "FunctionName": "public-url-fn",
+            "FunctionArn": "arn:aws:lambda:us-east-1:123456789012:function:public-url-fn",
+            "VpcConfig": {"SubnetIds": ["subnet-1", "subnet-2"], "VpcId": "vpc-123"},
+            "TracingConfig": {"Mode": "Active"},
+            "Environment": {"Variables": {"STAGE": "prod"}},
+            "KMSKeyArn": "arn:aws:kms:us-east-1:123456789012:key/abc",
+        }
+        session = self._make_lambda_session(
+            configuration,
+            url_config={"AuthType": "NONE"},
+            tags={"owner": "security"},
+            subnets=[
+                {"SubnetId": "subnet-1", "AvailabilityZone": "us-east-1a"},
+                {"SubnetId": "subnet-2", "AvailabilityZone": "us-east-1b"},
+            ],
+        )
+
+        findings = LambdaScanner(session).scan()
+
+        public_finding = next(f for f in findings if f.check_id == "LAMBDA-1")
+        assert public_finding.status == Status.FAIL
+        assert public_finding.severity == Severity.CRITICAL
+        assert "unauthenticated access" in public_finding.description
+
+    def test_public_resource_policy_detected(self):
+        configuration = {
+            "FunctionName": "public-policy-fn",
+            "FunctionArn": "arn:aws:lambda:us-east-1:123456789012:function:public-policy-fn",
+            "VpcConfig": {"SubnetIds": ["subnet-1", "subnet-2"], "VpcId": "vpc-123"},
+            "TracingConfig": {"Mode": "Active"},
+            "Environment": {"Variables": {"STAGE": "prod"}},
+            "KMSKeyArn": "arn:aws:kms:us-east-1:123456789012:key/abc",
+        }
+        session = self._make_lambda_session(
+            configuration,
+            policy={
+                "Statement": [
+                    {
+                        "Sid": "PublicInvoke",
+                        "Effect": "Allow",
+                        "Action": "lambda:InvokeFunction",
+                        "Principal": "*",
+                    }
+                ]
+            },
+            tags={"owner": "security"},
+            subnets=[
+                {"SubnetId": "subnet-1", "AvailabilityZone": "us-east-1a"},
+                {"SubnetId": "subnet-2", "AvailabilityZone": "us-east-1b"},
+            ],
+        )
+
+        findings = LambdaScanner(session).scan()
+
+        public_finding = next(f for f in findings if f.check_id == "LAMBDA-1")
+        assert public_finding.status == Status.FAIL
+        assert "PublicInvoke" in public_finding.description
+
+    def test_environment_variables_without_customer_kms_fail(self):
+        configuration = {
+            "FunctionName": "unencrypted-env-fn",
+            "FunctionArn": "arn:aws:lambda:us-east-1:123456789012:function:unencrypted-env-fn",
+            "VpcConfig": {"SubnetIds": ["subnet-1", "subnet-2"], "VpcId": "vpc-123"},
+            "TracingConfig": {"Mode": "Active"},
+            "Environment": {"Variables": {"API_TOKEN": "placeholder"}},
+        }
+        session = self._make_lambda_session(
+            configuration,
+            tags={"owner": "security"},
+            subnets=[
+                {"SubnetId": "subnet-1", "AvailabilityZone": "us-east-1a"},
+                {"SubnetId": "subnet-2", "AvailabilityZone": "us-east-1b"},
+            ],
+        )
+
+        findings = LambdaScanner(session).scan()
+
+        encryption_finding = next(f for f in findings if f.check_id == "LAMBDA-2")
+        assert encryption_finding.status == Status.FAIL
+        assert encryption_finding.severity == Severity.HIGH
+
+    def test_lambda_controls_pass_with_private_multi_az_configuration(self):
+        configuration = {
+            "FunctionName": "secure-fn",
+            "FunctionArn": "arn:aws:lambda:us-east-1:123456789012:function:secure-fn",
+            "VpcConfig": {"SubnetIds": ["subnet-1", "subnet-2"], "VpcId": "vpc-123"},
+            "TracingConfig": {"Mode": "Active"},
+            "Environment": {"Variables": {"STAGE": "prod"}},
+            "KMSKeyArn": "arn:aws:kms:us-east-1:123456789012:key/abc",
+        }
+        session = self._make_lambda_session(
+            configuration,
+            tags={"owner": "security", "environment": "prod"},
+            subnets=[
+                {"SubnetId": "subnet-1", "AvailabilityZone": "us-east-1a"},
+                {"SubnetId": "subnet-2", "AvailabilityZone": "us-east-1b"},
+            ],
+        )
+
+        findings = LambdaScanner(session).scan()
+
+        statuses = {finding.check_id: finding.status for finding in findings}
+        assert statuses["LAMBDA-1"] == Status.PASS
+        assert statuses["LAMBDA-2"] == Status.PASS
+        assert statuses["LAMBDA-3"] == Status.PASS
+        assert statuses["LAMBDA-4"] == Status.PASS
+        assert statuses["LAMBDA-5"] == Status.PASS
+        assert statuses["LAMBDA-6"] == Status.PASS
+
+
+# ---------------------------------------------------------------------------
 # report_generator
 # ---------------------------------------------------------------------------
+
 
 class TestReportGenerator:
     def _sample_findings(self):
         return [
             Finding(
-                check_id="T-1", check_name="Check A", status=Status.PASS,
-                severity=Severity.LOW, resource_id="r1",
-                resource_type="AWS::T::R", region="us-east-1",
+                check_id="T-1",
+                check_name="Check A",
+                status=Status.PASS,
+                severity=Severity.LOW,
+                resource_id="r1",
+                resource_type="AWS::T::R",
+                region="us-east-1",
                 description="ok",
             ),
             Finding(
-                check_id="T-2", check_name="Check B", status=Status.FAIL,
-                severity=Severity.HIGH, resource_id="r2",
-                resource_type="AWS::T::R", region="us-east-1",
+                check_id="T-2",
+                check_name="Check B",
+                status=Status.FAIL,
+                severity=Severity.HIGH,
+                resource_id="r2",
+                resource_type="AWS::T::R",
+                region="us-east-1",
                 description="not ok",
             ),
             Finding(
-                check_id="T-3", check_name="Check C", status=Status.FAIL,
-                severity=Severity.CRITICAL, resource_id="r3",
-                resource_type="AWS::T::R", region="us-east-1",
+                check_id="T-3",
+                check_name="Check C",
+                status=Status.FAIL,
+                severity=Severity.CRITICAL,
+                resource_id="r3",
+                resource_type="AWS::T::R",
+                region="us-east-1",
                 description="bad",
             ),
         ]
@@ -287,14 +466,24 @@ class TestReportGenerator:
 # module imports
 # ---------------------------------------------------------------------------
 
+
 class TestImports:
     def test_import_all_scanners(self):
-        from scanners import IAMScanner, S3Scanner, EC2Scanner, RDSScanner, LoggingScanner
+        from scanners import (
+            EC2Scanner,
+            IAMScanner,
+            LambdaScanner,
+            LoggingScanner,
+            RDSScanner,
+            S3Scanner,
+        )
+
         assert IAMScanner is not None
         assert S3Scanner is not None
         assert EC2Scanner is not None
         assert RDSScanner is not None
         assert LoggingScanner is not None
+        assert LambdaScanner is not None
 
     def test_severity_enum(self):
         assert Severity.CRITICAL.value == "CRITICAL"

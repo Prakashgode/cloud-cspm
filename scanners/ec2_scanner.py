@@ -1,5 +1,5 @@
-import boto3
 from botocore.exceptions import ClientError
+
 from .base_scanner import BaseScanner, Finding, Severity, Status
 
 
@@ -48,16 +48,12 @@ class EC2Scanner(BaseScanner):
                     for ip_range in rule.get("IpRanges", []):
                         cidr = ip_range.get("CidrIp", "")
                         if cidr == "0.0.0.0/0":
-                            self._report_open_port(
-                                sg_id, sg_name, from_port, to_port, cidr, region
-                            )
+                            self._report_open_port(sg_id, sg_name, from_port, to_port, cidr, region)
 
                     for ip_range in rule.get("Ipv6Ranges", []):
                         cidr = ip_range.get("CidrIpv6", "")
                         if cidr == "::/0":
-                            self._report_open_port(
-                                sg_id, sg_name, from_port, to_port, cidr, region
-                            )
+                            self._report_open_port(sg_id, sg_name, from_port, to_port, cidr, region)
         except ClientError:
             pass
 
@@ -84,12 +80,9 @@ class EC2Scanner(BaseScanner):
             )["SecurityGroups"]
 
             for sg in sgs:
-                has_rules = bool(
-                    sg.get("IpPermissions") or sg.get("IpPermissionsEgress")
-                )
+                has_rules = bool(sg.get("IpPermissions") or sg.get("IpPermissionsEgress"))
                 egress_only = (
-                    not sg.get("IpPermissions")
-                    and len(sg.get("IpPermissionsEgress", [])) <= 1
+                    not sg.get("IpPermissions") and len(sg.get("IpPermissionsEgress", [])) <= 1
                 )
 
                 if has_rules and not egress_only:

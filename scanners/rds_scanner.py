@@ -1,5 +1,5 @@
-import boto3
 from botocore.exceptions import ClientError
+
 from .base_scanner import BaseScanner, Finding, Severity, Status
 
 
@@ -48,7 +48,7 @@ class RDSScanner(BaseScanner):
             region=region,
             description=f"RDS instance '{db_id}' encryption is "
             + ("enabled" if encrypted else "NOT enabled"),
-            remediation=f"Create encrypted snapshot and restore: aws rds create-db-snapshot && aws rds copy-db-snapshot --kms-key-id alias/aws/rds",
+            remediation="Create encrypted snapshot and restore: aws rds create-db-snapshot && aws rds copy-db-snapshot --kms-key-id alias/aws/rds",
         )
 
     def _check_public_access(self, db, db_id, region):

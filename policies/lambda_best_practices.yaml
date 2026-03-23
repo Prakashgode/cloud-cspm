@@ -1,0 +1,42 @@
+policies:
+  - id: LAMBDA-1
+    name: "Lambda Public Access"
+    description: "Ensure Lambda functions do not expose public invoke paths or unauthenticated Function URLs"
+    severity: CRITICAL
+    scanner: lambda
+    check: no_public_access
+
+  - id: LAMBDA-2
+    name: "Lambda Environment Encryption"
+    description: "Ensure Lambda functions with environment variables use a customer-managed KMS key"
+    severity: HIGH
+    scanner: lambda
+    check: environment_encryption
+
+  - id: LAMBDA-3
+    name: "Lambda VPC Configuration"
+    description: "Ensure Lambda functions are attached to a VPC when network isolation is required"
+    severity: LOW
+    scanner: lambda
+    check: vpc_configuration
+
+  - id: LAMBDA-4
+    name: "Lambda Multi-AZ VPC"
+    description: "Ensure VPC-connected Lambda functions use subnets in at least two Availability Zones"
+    severity: MEDIUM
+    scanner: lambda
+    check: multi_az
+
+  - id: LAMBDA-5
+    name: "Lambda Resource Tags"
+    description: "Ensure Lambda functions have user-defined ownership or environment tags"
+    severity: LOW
+    scanner: lambda
+    check: tags_present
+
+  - id: LAMBDA-6
+    name: "Lambda X-Ray Tracing"
+    description: "Ensure Lambda functions have AWS X-Ray active tracing enabled"
+    severity: LOW
+    scanner: lambda
+    check: xray_tracing
