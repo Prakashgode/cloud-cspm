@@ -1,0 +1,64 @@
+{
+  "summary": {
+    "scan_timestamp": "2026-03-22T15:30:00+00:00",
+    "total_checks": 4,
+    "passed": 1,
+    "failed": 3,
+    "errors": 0,
+    "score": 25.0,
+    "failures_by_severity": {
+      "CRITICAL": 2,
+      "MEDIUM": 1
+    }
+  },
+  "findings": [
+    {
+      "check_id": "CIS-1.1",
+      "check_name": "Avoid Root Account Without MFA",
+      "status": "FAIL",
+      "severity": "CRITICAL",
+      "resource_id": "root-account",
+      "resource_type": "AWS::IAM::Account",
+      "region": "global",
+      "description": "Root account MFA is not enabled",
+      "remediation": "Enable a hardware or virtual MFA device on the root account",
+      "timestamp": "2026-03-22T15:30:00+00:00"
+    },
+    {
+      "check_id": "CIS-3.2",
+      "check_name": "S3 Encryption",
+      "status": "PASS",
+      "severity": "HIGH",
+      "resource_id": "portfolio-logs",
+      "resource_type": "AWS::S3::Bucket",
+      "region": "global",
+      "description": "Bucket 'portfolio-logs' has encryption enabled (AES256)",
+      "remediation": "aws s3api put-bucket-encryption --bucket portfolio-logs --server-side-encryption-configuration '{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'",
+      "timestamp": "2026-03-22T15:30:00+00:00"
+    },
+    {
+      "check_id": "LAMBDA-1",
+      "check_name": "Lambda Public Access",
+      "status": "FAIL",
+      "severity": "CRITICAL",
+      "resource_id": "public-demo-fn",
+      "resource_type": "AWS::Lambda::Function",
+      "region": "us-east-1",
+      "description": "Function URL or policy allows public invoke",
+      "remediation": "Require AWS_IAM authentication and remove wildcard invoke permissions",
+      "timestamp": "2026-03-22T15:30:00+00:00"
+    },
+    {
+      "check_id": "SECRETS-1",
+      "check_name": "Secrets Manager Rotation Enabled",
+      "status": "FAIL",
+      "severity": "MEDIUM",
+      "resource_id": "prod/db/password",
+      "resource_type": "AWS::SecretsManager::Secret",
+      "region": "us-east-1",
+      "description": "Secret rotation is disabled",
+      "remediation": "Enable automatic rotation for the secret and attach a rotation Lambda",
+      "timestamp": "2026-03-22T15:30:00+00:00"
+    }
+  ]
+}

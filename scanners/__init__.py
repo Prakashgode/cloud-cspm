@@ -4,6 +4,7 @@ from .lambda_scanner import LambdaScanner
 from .logging_scanner import LoggingScanner
 from .rds_scanner import RDSScanner
 from .s3_scanner import S3Scanner
+from .secretsmanager_scanner import SecretsManagerScanner
 
 __all__ = [
     "IAMScanner",
@@ -12,4 +13,5 @@ __all__ = [
     "RDSScanner",
     "LoggingScanner",
     "LambdaScanner",
+    "SecretsManagerScanner",
 ]
