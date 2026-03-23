@@ -1,5 +1,9 @@
-import boto3
+import csv
+from datetime import UTC, date, datetime, timedelta
+from io import StringIO
+
 from botocore.exceptions import ClientError
+
 from .base_scanner import BaseScanner, Finding, Severity, Status
 
 
@@ -50,13 +54,15 @@ class IAMScanner(BaseScanner):
             requires_upper = policy.get("RequireUppercaseCharacters", False)
             requires_lower = policy.get("RequireLowercaseCharacters", False)
 
-            is_strong = all([
-                min_length >= 14,
-                requires_symbols,
-                requires_numbers,
-                requires_upper,
-                requires_lower,
-            ])
+            is_strong = all(
+                [
+                    min_length >= 14,
+                    requires_symbols,
+                    requires_numbers,
+                    requires_upper,
+                    requires_lower,
+                ]
+            )
 
             issues = []
             if min_length < 14:
@@ -103,12 +109,9 @@ class IAMScanner(BaseScanner):
             if response["State"] == "COMPLETE":
                 report = iam.get_credential_report()
                 content = report["Content"].decode("utf-8")
-                import csv
-                from io import StringIO
-                from datetime import datetime, timedelta
 
                 reader = csv.DictReader(StringIO(content))
-                threshold = datetime.utcnow() - timedelta(days=90)
+                threshold = (datetime.now(UTC) - timedelta(days=90)).date()
 
                 for row in reader:
                     user = row["user"]
@@ -117,9 +120,7 @@ class IAMScanner(BaseScanner):
 
                     last_used = row.get("password_last_used", "N/A")
                     if last_used not in ("N/A", "no_information", "not_supported"):
-                        last_used_date = datetime.strptime(
-                            last_used.split("T")[0], "%Y-%m-%d"
-                        )
+                        last_used_date = date.fromisoformat(last_used.split("T")[0])
                         if last_used_date < threshold:
                             self.add_finding(
                                 check_id="CIS-1.3",
@@ -138,9 +139,8 @@ class IAMScanner(BaseScanner):
     def _check_access_keys_rotation(self, iam):
         try:
             users = iam.list_users()["Users"]
-            from datetime import datetime, timedelta
 
-            threshold = datetime.utcnow() - timedelta(days=90)
+            threshold = datetime.now(UTC) - timedelta(days=90)
 
             for user in users:
                 username = user["UserName"]
@@ -148,7 +148,7 @@ class IAMScanner(BaseScanner):
 
                 for key in keys:
                     if key["Status"] == "Active":
-                        created = key["CreateDate"].replace(tzinfo=None)
+                        created = key["CreateDate"].astimezone(UTC)
                         if created < threshold:
                             self.add_finding(
                                 check_id="CIS-1.4",
@@ -170,10 +170,8 @@ class IAMScanner(BaseScanner):
             for user in users:
                 username = user["UserName"]
                 try:
-                    login_profile = iam.get_login_profile(UserName=username)
-                    mfa_devices = iam.list_mfa_devices(UserName=username)[
-                        "MFADevices"
-                    ]
+                    iam.get_login_profile(UserName=username)
+                    mfa_devices = iam.list_mfa_devices(UserName=username)["MFADevices"]
                     if not mfa_devices:
                         self.add_finding(
                             check_id="CIS-1.5",

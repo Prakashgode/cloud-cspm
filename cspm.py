@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 import sys
-import click
+
 import boto3
+import click
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 
-from scanners import IAMScanner, S3Scanner, EC2Scanner, RDSScanner, LoggingScanner
-from scanners.base_scanner import Status, Severity
 from reports.generator import ReportGenerator
+from scanners import EC2Scanner, IAMScanner, LambdaScanner, LoggingScanner, RDSScanner, S3Scanner
+from scanners.base_scanner import Finding, Status
 
 console = Console()
 
@@ -21,6 +22,7 @@ SCANNERS = {
     "ec2": ("EC2 & Network Security", EC2Scanner),
     "rds": ("RDS Database Security", RDSScanner),
     "logging": ("Logging & Monitoring", LoggingScanner),
+    "lambda": ("Lambda Security", LambdaScanner),
 }
 
 SEVERITY_COLORS = {
@@ -37,6 +39,8 @@ STATUS_ICONS = {
     "ERROR": "[yellow]ERROR[/yellow]",
 }
 
+SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+
 
 @click.command()
 @click.option("--profile", default=None, help="AWS CLI profile name")
@@ -49,7 +53,12 @@ STATUS_ICONS = {
     help="Scanners to run",
 )
 @click.option("--output", default=None, help="Output file path (JSON or CSV)")
-@click.option("--severity", default=None, type=click.Choice(["CRITICAL", "HIGH", "MEDIUM", "LOW"]), help="Minimum severity to display")
+@click.option(
+    "--severity",
+    default=None,
+    type=click.Choice(["CRITICAL", "HIGH", "MEDIUM", "LOW"]),
+    help="Minimum severity to display",
+)
 def main(profile, region, scanner, output, severity):
     console.print(
         Panel(
@@ -77,7 +86,7 @@ def main(profile, region, scanner, output, severity):
         sys.exit(1)
 
     scanners_to_run = list(SCANNERS.keys()) if "all" in scanner else list(scanner)
-    all_findings = []
+    all_findings: list[Finding] = []
 
     for scanner_name in scanners_to_run:
         label, scanner_class = SCANNERS[scanner_name]
@@ -90,19 +99,15 @@ def main(profile, region, scanner, output, severity):
 
             passed = sum(1 for f in findings if f.status == Status.PASS)
             failed = sum(1 for f in findings if f.status == Status.FAIL)
-            console.print(
-                f"  [green]{passed} passed[/green] | [red]{failed} failed[/red]"
-            )
+            console.print(f"  [green]{passed} passed[/green] | [red]{failed} failed[/red]")
         except Exception as e:
             console.print(f"  [red]Error: {e}[/red]")
 
     # filter out findings below the requested severity threshold
     if severity:
-        severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
-        min_index = severity_order.index(severity)
+        min_index = SEVERITY_ORDER.index(severity)
         all_findings = [
-            f for f in all_findings
-            if severity_order.index(f.severity.value) <= min_index
+            f for f in all_findings if SEVERITY_ORDER.index(f.severity.value) <= min_index
         ]
 
     console.print()
@@ -114,10 +119,13 @@ def main(profile, region, scanner, output, severity):
     table.add_column("Resource", width=30)
     table.add_column("Description", width=50)
 
-    for f in sorted(all_findings, key=lambda x: (
-        x.status.value != "FAIL",
-        ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"].index(x.severity.value),
-    )):
+    for f in sorted(
+        all_findings,
+        key=lambda x: (
+            x.status.value != "FAIL",
+            SEVERITY_ORDER.index(x.severity.value),
+        ),
+    ):
         severity_style = SEVERITY_COLORS.get(f.severity.value, "")
         table.add_row(
             f.check_id,

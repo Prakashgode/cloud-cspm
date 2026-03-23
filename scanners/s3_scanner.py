@@ -1,6 +1,7 @@
 import json
-import boto3
+
 from botocore.exceptions import ClientError
+
 from .base_scanner import BaseScanner, Finding, Severity, Status
 
 
@@ -36,12 +37,14 @@ class S3Scanner(BaseScanner):
         try:
             public_access = s3.get_public_access_block(Bucket=bucket_name)
             config = public_access["PublicAccessBlockConfiguration"]
-            all_blocked = all([
-                config.get("BlockPublicAcls", False),
-                config.get("IgnorePublicAcls", False),
-                config.get("BlockPublicPolicy", False),
-                config.get("RestrictPublicBuckets", False),
-            ])
+            all_blocked = all(
+                [
+                    config.get("BlockPublicAcls", False),
+                    config.get("IgnorePublicAcls", False),
+                    config.get("BlockPublicPolicy", False),
+                    config.get("RestrictPublicBuckets", False),
+                ]
+            )
 
             self.add_finding(
                 check_id="CIS-3.1",
@@ -95,7 +98,7 @@ class S3Scanner(BaseScanner):
                     resource_type="AWS::S3::Bucket",
                     region="global",
                     description=f"Bucket '{bucket_name}' does NOT have encryption enabled",
-                    remediation=f"aws s3api put-bucket-encryption --bucket {bucket_name} --server-side-encryption-configuration '{{\"Rules\":[{{\"ApplyServerSideEncryptionByDefault\":{{\"SSEAlgorithm\":\"AES256\"}}}}]}}'",
+                    remediation=f'aws s3api put-bucket-encryption --bucket {bucket_name} --server-side-encryption-configuration \'{{"Rules":[{{"ApplyServerSideEncryptionByDefault":{{"SSEAlgorithm":"AES256"}}}}]}}\'',
                 )
 
     def _check_versioning(self, s3, bucket_name):
@@ -141,8 +144,7 @@ class S3Scanner(BaseScanner):
             policy = json.loads(policy_str)
             enforces_ssl = any(
                 stmt.get("Effect") == "Deny"
-                and stmt.get("Condition", {}).get("Bool", {}).get("aws:SecureTransport")
-                == "false"
+                and stmt.get("Condition", {}).get("Bool", {}).get("aws:SecureTransport") == "false"
                 for stmt in policy.get("Statement", [])
             )
             self.add_finding(

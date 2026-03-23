@@ -1,10 +1,16 @@
 # Cloud CSPM
 
 ![CI](https://github.com/Prakashgode/cloud-cspm/actions/workflows/ci.yml/badge.svg)
+![CodeQL](https://github.com/Prakashgode/cloud-cspm/actions/workflows/codeql.yml/badge.svg)
 
-Scans AWS accounts for security misconfigurations against CIS benchmark controls. Covers IAM, S3, EC2, RDS, and CloudTrail.
+Cloud CSPM is a lightweight AWS Cloud Security Posture Management CLI that scans
+for CIS-style security misconfigurations across IAM, S3, EC2, RDS, and logging,
+plus Lambda best-practice controls for public access, encryption, network
+placement, tagging, and tracing. It uses `boto3`, `click`, and `rich`, and now
+includes modern Python project metadata, `uv` workflows, Ruff, mypy,
+Dependabot, and CodeQL.
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11%20to%203.14-blue?logo=python&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-Security-orange?logo=amazon-web-services&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -17,76 +23,100 @@ Scans AWS accounts for security misconfigurations against CIS benchmark controls
 | EC2 | Open SSH/RDP, dangerous ports, default security groups, EBS encryption, public instances |
 | RDS | Encryption, public access, Multi-AZ, auto upgrades, backup retention, deletion protection |
 | Logging | CloudTrail enabled, log validation, KMS encryption, VPC flow logs |
+| Lambda | Public access, environment KMS encryption, VPC attachment, multi-AZ subnets, tags, X-Ray tracing |
 
-## Setup
+## Requirements
+
+- Python 3.11 to 3.14
+- AWS credentials configured with `aws configure` or environment variables
+- Read-only AWS access such as the `SecurityAudit` managed policy
+
+## Quick Start
+
+Preferred workflow with `uv`:
 
 ```bash
 git clone https://github.com/Prakashgode/cloud-cspm.git
 cd cloud-cspm
-pip install -r requirements.txt
+uv sync --locked --all-extras --dev
+uv run cloud-cspm
 ```
 
-Needs Python 3.8+ and AWS credentials configured (`aws configure`). The `SecurityAudit` managed policy is enough for read-only access.
+Fallback with `pip`:
+
+```bash
+python -m venv .venv
+# Linux/macOS: source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+cloud-cspm
+```
+
+You can still run the source entry point directly with `python cspm.py`.
 
 ## Usage
 
 ```bash
 # run everything
-python cspm.py
+cloud-cspm
 
 # specific profile
-python cspm.py --profile production
+cloud-cspm --profile production
+
+# single region
+cloud-cspm --region us-east-1
 
 # specific scanners
-python cspm.py --scanner iam --scanner s3
+cloud-cspm --scanner iam --scanner s3
+cloud-cspm --scanner lambda
 
 # filter by severity
-python cspm.py --severity CRITICAL
+cloud-cspm --severity CRITICAL
 
 # export results
-python cspm.py --output report.json
-python cspm.py --output report.csv
+cloud-cspm --output report.json
+cloud-cspm --output report.csv
 ```
 
-## Sample Output
+## Development
 
-```
-$ python cspm.py --profile default --region us-east-1
+Install the full developer environment:
 
-Scanning IAM...
-[CRITICAL] Root account has active access keys (CIS 1.4)
-[HIGH] 3 IAM users without MFA enabled (CIS 1.2)
-[PASS] No inline policies on IAM users (CIS 1.16)
-
-Scanning S3...
-[HIGH] Bucket "dev-logs-2024" has public read access (CIS 2.1.1)
-[MEDIUM] Bucket "backups" missing server-side encryption (CIS 2.1.2)
-[PASS] All buckets have versioning enabled
-
-Scanning EC2...
-[HIGH] Security group sg-0a1b2c allows 0.0.0.0/0 on port 22 (CIS 5.2)
-[PASS] No public instances found
-
-Results: 4 critical/high, 1 medium, 3 passed | 3 services scanned
+```bash
+uv sync --locked --all-extras --dev
 ```
 
-## Structure
+Run the quality gates locally:
 
+```bash
+uv run ruff format .
+uv run ruff check .
+uv run mypy
+uv run pytest -v
 ```
+
+The repo now includes:
+
+- `pyproject.toml` for project metadata and tool configuration
+- `uv.lock` for reproducible dependency resolution
+- Ruff for linting and import sorting
+- mypy for basic type checking
+- GitHub Actions matrix testing on Python 3.11 to 3.14
+- Dependabot for pip and GitHub Actions updates
+- CodeQL for code scanning
+
+## Project Layout
+
+```text
 cloud-cspm/
-├── cspm.py                 # entry point
-├── scanners/
-│   ├── base_scanner.py     # base class and data models
-│   ├── iam_scanner.py
-│   ├── s3_scanner.py
-│   ├── ec2_scanner.py
-│   ├── rds_scanner.py
-│   └── logging_scanner.py
-├── reports/
-│   └── generator.py        # JSON/CSV export
-├── policies/
-│   └── cis_aws.yaml        # CIS policy definitions
-└── requirements.txt
+|-- cspm.py
+|-- pyproject.toml
+|-- uv.lock
+|-- scanners/
+|-- reports/
+|-- policies/
+|-- tests/
+`-- .github/workflows/
 ```
 
 ## Adding a Scanner
@@ -95,6 +125,7 @@ Extend `BaseScanner` and call `self.add_finding(...)`:
 
 ```python
 from scanners.base_scanner import BaseScanner, Severity, Status
+
 
 class MyScanner(BaseScanner):
     def scan(self):
@@ -111,8 +142,6 @@ class MyScanner(BaseScanner):
         )
         return self.findings
 ```
-
-CIS policy definitions live in `policies/cis_aws.yaml` if you want to tweak them.
 
 ## License
 
