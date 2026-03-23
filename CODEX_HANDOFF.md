@@ -189,3 +189,4 @@ jinja2>=3.1.0       # Template engine (imported but not actively used yet)
 5. **Tests must pass** before pushing: `pytest tests/ -v`
 6. **Keep it simple** - no over-engineering, no unnecessary abstractions
 7. **Branch from master**, PR into master
+8. **Do not touch GitHub remote state without explicit user approval in this thread** - no push, pull, branch deletion, PR creation, or other remote changes unless the user clearly asks for that action
