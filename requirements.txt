@@ -6,3 +6,5 @@ click>=8.3.0
 Jinja2>=3.1.6
 PyYAML>=6.0.1
 rich>=14.0.0
+moto[all]>=5.0.0
+pytest>=8.0.0
