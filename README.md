@@ -1,14 +1,12 @@
 # Cloud CSPM
 
 ![CI](https://github.com/Prakashgode/cloud-cspm/actions/workflows/ci.yml/badge.svg)
-![CodeQL](https://github.com/Prakashgode/cloud-cspm/actions/workflows/codeql.yml/badge.svg)
 
 Cloud CSPM is a lightweight AWS Cloud Security Posture Management CLI that scans
 for CIS-style security misconfigurations across IAM, S3, EC2, RDS, logging,
 Lambda, and Secrets Manager. It supports cross-account scanning with STS
 AssumeRole, uses `boto3`, `click`, and `rich`, and includes modern Python
-project metadata, `uv` workflows, Ruff, mypy, Dependabot, dependency review,
-CodeQL, and native SARIF export.
+project metadata, CI workflows, and native SARIF export.
 
 ![Python](https://img.shields.io/badge/Python-3.11%20to%203.14-blue?logo=python&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-Security-orange?logo=amazon-web-services&logoColor=white)
@@ -149,7 +147,6 @@ The repo includes:
 - GitHub Actions matrix testing on Python 3.11 to 3.14
 - Dependabot for pip and GitHub Actions updates
 - Dependency Review on pull requests
-- CodeQL for code scanning
 - Native SARIF export for downstream security tooling
 - moto-backed integration tests for AWS emulator coverage
 - `SECURITY.md`, `LICENSE`, and `CONTRIBUTING.md` for repo hygiene
