@@ -1,31 +1,32 @@
 # CSPM Roadmap
 
 ## Done
-- [x] IAM scanner (root keys, MFA, credential age)
-- [x] S3 scanner (public access, encryption, versioning)
-- [x] EC2 scanner (security groups, open ports)
-- [x] RDS scanner (encryption, public access)
-- [x] CloudTrail logging checks
-- [x] Lambda function policy checks
-- [x] Secrets Manager rotation checks
-- [x] CIS benchmark mappings
-- [x] HTML report generator
-- [x] SARIF output for CI integration
-- [x] Cross-account scanning via STS AssumeRole
-- [x] CI pipeline with pytest and moto
+- IAM scanner: root MFA, password policy, credential age, access key rotation
+- S3 scanner: public access, encryption, versioning, logging, SSL enforcement
+- EC2 scanner: security groups, open ports, public instances, EBS encryption
+- RDS scanner: encryption, public access, Multi-AZ, backup and deletion checks
+- Logging checks: CloudTrail coverage, log validation, KMS encryption, VPC flow logs
+- Lambda security checks: public access, environment encryption, VPC, tags, tracing
+- Secrets Manager checks: rotation, recent access, tagging
+- Cross-account scanning via STS AssumeRole
+- JSON, CSV, and SARIF export
+- Sample report artifacts for portfolio/demo use
+- CI with Ruff, mypy, pytest, and moto-backed integration tests
+- Repo hygiene: SECURITY.md, LICENSE, CONTRIBUTING.md
 
 ## Next Up
-- [ ] Multi-account support (scan org-wide)
-- [ ] EKS cluster security checks
-- [ ] VPC flow log validation
-- [ ] SNS/SQS public access checks
-- [ ] Config rule compliance checks
-- [ ] Slack/Teams alerting on critical findings
-- [ ] Scheduled scan mode (cron-based)
-- [ ] Terraform plan scanning (pre-deploy checks)
+- Terraform plan scanning (pre-deploy checks)
+- EKS cluster security checks
+- AWS Config compliance checks
+- Org-wide multi-account scanning via AWS Organizations
+- SNS/SQS public access checks
+- Slack or Teams alerting for critical findings
+- Scheduled scan mode
+- Policy-driven check configuration from YAML
 
 ## Maybe Later
-- [ ] Azure support (Defender integration)
-- [ ] GCP support (Security Command Center)
-- [ ] Dashboard UI (flask or streamlit)
-- [ ] Remediation automation (auto-fix common issues)
+- KMS key policy and rotation checks
+- Dashboard UI
+- Remediation automation for common issues
+- Azure support
+- GCP support
