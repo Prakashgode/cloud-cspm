@@ -10,7 +10,7 @@
 - Secrets Manager checks: rotation, recent access, tagging
 - Cross-account scanning via STS AssumeRole
 - JSON, CSV, and SARIF export
-- Sample report artifacts for portfolio/demo use
+- Sample report artifacts for demos and documentation
 - CI with Ruff, mypy, pytest, and moto-backed integration tests
 - Repo hygiene: SECURITY.md, LICENSE, CONTRIBUTING.md
 

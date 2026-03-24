@@ -49,12 +49,12 @@ def sample_findings() -> list[Finding]:
             check_name="S3 Encryption",
             status=Status.PASS,
             severity=Severity.HIGH,
-            resource_id="portfolio-logs",
+            resource_id="demo-logs",
             resource_type="AWS::S3::Bucket",
             region="global",
-            description="Bucket 'portfolio-logs' has encryption enabled (AES256)",
+            description="Bucket 'demo-logs' has encryption enabled (AES256)",
             remediation=(
-                "aws s3api put-bucket-encryption --bucket portfolio-logs "
+                "aws s3api put-bucket-encryption --bucket demo-logs "
                 "--server-side-encryption-configuration "
                 "'{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'"
             ),

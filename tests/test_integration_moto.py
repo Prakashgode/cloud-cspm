@@ -52,8 +52,8 @@ def test_s3_scanner_detects_secure_and_insecure_buckets_with_moto():
     session = boto3.Session(region_name="us-east-1")
     s3 = session.client("s3", region_name="us-east-1")
 
-    secure_bucket = "portfolio-secure-bucket"
-    insecure_bucket = "portfolio-insecure-bucket"
+    secure_bucket = "test-secure-bucket"
+    insecure_bucket = "test-insecure-bucket"
 
     s3.create_bucket(Bucket=secure_bucket)
     s3.create_bucket(Bucket=insecure_bucket)

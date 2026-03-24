@@ -81,7 +81,7 @@ cloud-cspm --output report.sarif
 
 ## Sample Reports
 
-Deterministic portfolio artifacts are committed under:
+Sample artifacts are committed under:
 
 - [`samples/demo-report.json`](samples/demo-report.json)
 - [`samples/demo-report.csv`](samples/demo-report.csv)
@@ -118,7 +118,7 @@ If the target role requires an external ID:
 cloud-cspm \
   --profile security-audit \
   --role-arn arn:aws:iam::123456789012:role/SecurityAudit \
-  --external-id portfolio-demo
+  --external-id cspm-demo
 ```
 
 ## Development

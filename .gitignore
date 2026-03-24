@@ -17,3 +17,4 @@ venv/
 /report.sarif.json
 
 !policies/*.yaml
+CODEX_HANDOFF.md

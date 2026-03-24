@@ -56,7 +56,7 @@ def test_build_scan_session_assumes_role_when_role_arn_is_provided():
             profile="audit",
             region="us-west-2",
             role_arn="arn:aws:iam::222222222222:role/SecurityAudit",
-            external_id="portfolio-demo",
+            external_id="cspm-demo",
             session_name="cloud-cspm",
         )
 
@@ -70,7 +70,7 @@ def test_build_scan_session_assumes_role_when_role_arn_is_provided():
     base_sts.assume_role.assert_called_once_with(
         RoleArn="arn:aws:iam::222222222222:role/SecurityAudit",
         RoleSessionName="cloud-cspm",
-        ExternalId="portfolio-demo",
+        ExternalId="cspm-demo",
     )
     assert session is assumed_session
     assert identity["Account"] == "222222222222"
